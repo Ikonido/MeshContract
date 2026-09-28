@@ -6,9 +6,13 @@ Describe geometry limits in YAML and check Wavefront OBJ files from the command 
 
 ## Installation
 
-Python 3.11 or newer is required. MeshContract is not published on PyPI yet.
+Python 3.11 or newer is required. Install the released package from [PyPI](https://pypi.org/project/meshcontract/):
 
-Install the current source from GitHub:
+```bash
+pip install meshcontract
+```
+
+To install the current development source from GitHub instead:
 
 ```bash
 python -m pip install "git+https://github.com/Ikonido/MeshContract.git@main"
@@ -86,7 +90,7 @@ OBJ does not define a universal unit or axis convention. MeshContract treats coo
 
 Exit codes are stable for CI: `0` means the contract passed, `1` means one or more contract violations, and `2` means invalid input, an invalid contract, or an unsupported model format. A non-zero code fails a GitHub Actions step by default.
 
-The repository includes a copyable [GitHub Actions workflow example](examples/github-actions/meshcontract.yml). Copy it to `.github/workflows/` in your asset repository and update the OBJ and contract paths in its final step. It installs the current source from GitHub because MeshContract is not on PyPI yet; for reproducible builds, pin that Git URL to a reviewed commit.
+The repository includes a copyable [GitHub Actions workflow example](examples/github-actions/meshcontract.yml). Copy it to `.github/workflows/` in your asset repository and update the OBJ and contract paths in its final step. It installs the released package from PyPI, pinned to `meshcontract==0.2.0` for reproducible builds.
 
 The project test workflow runs the full pytest suite on Python 3.11 and 3.12 for every push and pull request.
 
@@ -98,7 +102,6 @@ The default text format and v0.1 YAML contract remain supported. MeshContract do
 
 ## Roadmap
 
-- Finish packaging checks and publish to PyPI when separately authorized.
 - Add additional asset backends behind the shared geometry model.
 - Explore UV, texture, material, naming, and collision contract sections.
 - Consider engine presets, a custom GitHub Action, and semantic asset diffs.
