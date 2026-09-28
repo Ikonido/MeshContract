@@ -2,29 +2,69 @@
 
 **Requirements-as-code for 3D assets. Think ESLint or a test suite, but for 3D assets.**
 
-MeshContract reads technical limits from a YAML contract and checks a model from the command line. The first release supports Wavefront OBJ geometry checks.
+Describe geometry limits in YAML and check Wavefront OBJ files from the command line. MeshContract returns a CI-friendly exit code and can emit text or JSON.
+
+## Installation
+
+Python 3.11 or newer is required. MeshContract is not published on PyPI yet.
+
+Install the current source from GitHub:
+
+```bash
+python -m pip install "git+https://github.com/Ikonido/MeshContract.git@main"
+```
+
+For local development, clone the repository and install it in editable mode:
+
+```bash
+git clone https://github.com/Ikonido/MeshContract.git
+cd MeshContract
+python -m pip install -e '.[dev]'
+```
 
 ## Quick start
 
-Python 3.11 or newer is required.
-
 ```bash
-pip install -e .
 meshcontract check examples/example.obj --contract examples/.meshcontract.yml
 ```
 
-The example should pass and report 8 vertices, 6 faces, 12 triangles, and dimensions of 2 × 4 × 3 m.
+Text is the default output and remains suitable for interactive use:
 
-Run the unit tests with:
-
-```bash
-pip install -e '.[dev]'
-pytest
+```text
+Model: examples/example.obj
+Vertices: 8
+Faces: 6
+Triangles: 12
+Dimensions: width=2.000 m, length=4.000 m, height=3.000 m
+PASS — contract satisfied
 ```
 
-GitHub Actions runs the full test suite on Python 3.11 and 3.12 for every push and pull request.
+For scripts and CI, request stable JSON output:
 
-## Contract
+```bash
+meshcontract check examples/example.obj --contract examples/.meshcontract.yml --format json
+```
+
+```json
+{
+  "meshcontract_version": "0.2.0",
+  "status": "pass",
+  "model": "examples/example.obj",
+  "metrics": {
+    "vertices": 8,
+    "faces": 6,
+    "triangles": 12,
+    "dimensions_m": {
+      "width": 2.0,
+      "length": 4.0,
+      "height": 3.0
+    }
+  },
+  "violations": []
+}
+```
+
+## YAML contract
 
 ```yaml
 version: 1
@@ -38,22 +78,29 @@ geometry:
   allow_ngons: false
 ```
 
-All limits are optional. A face with `n` vertices contributes `n - 2` to the triangle count; this is calculated without changing the OBJ file. An n-gon means a face with more than four vertices, so quads are allowed even when `allow_ngons` is false.
+All limits are optional. A face with `n` vertices contributes `n - 2` to the virtual triangle count; the OBJ file is not changed. An n-gon means a face with more than four vertices, so quads are allowed when `allow_ngons` is false.
 
-OBJ does not specify a universal unit or axis convention. MeshContract treats coordinate values as meters and maps X to width, Y to length, and Z to height. Export models using that convention, or transform them before checking.
+OBJ does not define a universal unit or axis convention. MeshContract treats coordinate values as meters and maps X to width, Y to length, and Z to height. Export models using that convention, or transform them before checking.
+
+## CI / GitHub Actions
+
+Exit codes are stable for CI: `0` means the contract passed, `1` means one or more contract violations, and `2` means invalid input, an invalid contract, or an unsupported model format. A non-zero code fails a GitHub Actions step by default.
+
+The repository includes a copyable [GitHub Actions workflow example](examples/github-actions/meshcontract.yml). Copy it to `.github/workflows/` in your asset repository and update the OBJ and contract paths in its final step. It installs the current source from GitHub because MeshContract is not on PyPI yet; for reproducible builds, pin that Git URL to a reviewed commit.
+
+The project test workflow runs the full pytest suite on Python 3.11 and 3.12 for every push and pull request.
 
 ## Current scope
 
-MeshContract reports vertex and face counts, virtual triangle count, and axis-aligned dimensions. It checks `max_triangles`, `max_vertices`, `max_width_m`, `max_height_m`, `max_length_m`, and `allow_ngons`. Invalid OBJ geometry and invalid contract YAML produce a readable error and a non-zero exit code.
+The v0.2 CI foundation checks Wavefront OBJ vertex and face counts, virtual triangle count, axis-aligned dimensions, and n-gons. JSON contract violations include a stable code, rule, message, actual value, and limit. Invalid input produces a JSON error object when `--format json` is selected.
 
-This MVP does not validate UVs, textures, materials, normals, naming, or collision meshes. Additional file formats and validators can be added independently of the core contract checks.
+The default text format and v0.1 YAML contract remain supported. MeshContract does not currently validate UVs, textures, materials, normals, naming, or collision meshes.
 
-## Next steps for v0.2
+## Roadmap
 
-- Add JSON output for CI and other tools.
-- Add a glTF/GLB reader behind the same geometry metrics interface.
-- Add UV and texture checks with focused contract sections.
-- Add Unity/Unreal contract presets.
-- Explore semantic comparisons between two asset versions.
+- Finish packaging checks and publish to PyPI when separately authorized.
+- Add additional asset backends behind the shared geometry model.
+- Explore UV, texture, material, naming, and collision contract sections.
+- Consider engine presets, a custom GitHub Action, and semantic asset diffs.
 
 MeshContract is released under the MIT License; see [LICENSE](LICENSE).

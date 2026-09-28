@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,3 +24,27 @@ class MeshStats:
     triangles: int
     dimensions: Dimensions
     ngon_faces: int
+
+
+@dataclass(frozen=True, slots=True)
+class Violation:
+    """A machine-readable contract violation with a human-readable message."""
+
+    code: str
+    rule: str
+    message: str
+    actual: int | float
+    limit: int | float
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationResult:
+    """Backend-independent outcome of checking geometry metrics."""
+
+    metrics: MeshStats
+    violations: tuple[Violation, ...]
+
+    @property
+    def status(self) -> Literal["pass", "fail"]:
+        """Return the stable, machine-readable validation status."""
+        return "fail" if self.violations else "pass"

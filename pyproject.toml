@@ -1,16 +1,35 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "meshcontract"
-version = "0.1.0"
+version = "0.2.0"
 description = "Requirements-as-code and automated validation for 3D assets"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Vlad Rudenko" }]
+keywords = ["3d-assets", "mesh", "obj", "yaml", "validation", "requirements-as-code"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Utilities",
+]
 dependencies = ["PyYAML>=6.0"]
+
+[project.urls]
+Homepage = "https://github.com/Ikonido/MeshContract"
+Repository = "https://github.com/Ikonido/MeshContract"
+Issues = "https://github.com/Ikonido/MeshContract/issues"
+Releases = "https://github.com/Ikonido/MeshContract/releases"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
