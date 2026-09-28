@@ -1,49 +1,88 @@
 name: Publish to PyPI
 
+# Two entry points:
+#   * release (published): the normal path for future versions vX.Y.Z.
+#   * workflow_dispatch: manual run for an existing tag. It is a DRY RUN unless
+#     publish_to_pypi is explicitly set to true.
+#
+# v0.2.0 was released before this workflow existed, so its release event never
+# triggered it; the manual path is how v0.2.0 is published for the first time.
+
 on:
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: "The first PyPI upload is pinned to v0.2.0"
-        type: choice
-        options:
-          - v0.2.0
+        description: "Existing release tag to build, e.g. v0.2.0"
+        type: string
         required: true
         default: v0.2.0
+      publish_to_pypi:
+        description: "Upload to PyPI after a successful build. Leave false for a dry run."
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
 
+env:
+  # First PyPI upload only: v0.2.0 must be built from exactly this commit.
+  V020_COMMIT: 57af4fe645d4963d0d0d5952334bd1605f6f376c
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
 jobs:
   build:
     name: Build and check distributions
-    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    # Manual runs must use the workflow definition from main.
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Check out release source
+      - name: Check out release tag
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: refs/tags/${{ github.event.release.tag_name || inputs.tag }}
           persist-credentials: false
 
-      - name: Verify manual v0.2.0 source
-        if: github.event_name == 'workflow_dispatch'
+      - name: Verify tag, commit and package version
         run: |
-          test "$(git rev-parse HEAD)" = "57af4fe645d4963d0d0d5952334bd1605f6f376c"
-          python -c 'import tomllib; p=tomllib.load(open("pyproject.toml", "rb"))["project"]; assert p["name"] == "meshcontract" and p["version"] == "0.2.0"'
+          set -euo pipefail
+          echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            || { echo "::error::Tag '$TAG' is not of the form vX.Y.Z"; exit 1; }
+          tag_commit="$(git rev-parse --verify "refs/tags/${TAG}^{commit}")"
+          head_commit="$(git rev-parse HEAD)"
+          echo "tag=$TAG tag_commit=$tag_commit checked_out=$head_commit"
+          test "$tag_commit" = "$head_commit" \
+            || { echo "::error::Checked-out commit is not the tag commit"; exit 1; }
+          if [ "$TAG" = "v0.2.0" ] && [ "$head_commit" != "$V020_COMMIT" ]; then
+            echo "::error::v0.2.0 must be built from $V020_COMMIT, got $head_commit"
+            exit 1
+          fi
+          python - <<'PY'
+          import os, tomllib
+          project = tomllib.load(open("pyproject.toml", "rb"))["project"]
+          tag = os.environ["TAG"]
+          print(f"name={project['name']} version={project['version']}")
+          assert project["name"] == "meshcontract", "package name must be meshcontract"
+          assert project["version"] == tag.removeprefix("v"), (
+              f"tag {tag} does not match package version {project['version']}"
+          )
+          PY
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - name: Build and verify distributions
+      - name: Build distributions
         run: |
           python -m pip install --upgrade build twine
           python -m build
           python -m twine check dist/*
+          ls -l dist/
+          test "$(ls dist/*.whl | wc -l)" = 1
+          test "$(ls dist/*.tar.gz | wc -l)" = 1
 
       - name: Upload distributions
         uses: actions/upload-artifact@v7
@@ -51,12 +90,55 @@ jobs:
           name: python-package-distributions
           path: dist/
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
+
+  smoke-test:
+    name: Smoke-test the built wheel and sdist
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release tag (for examples)
+        uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ github.event.release.tag_name || inputs.tag }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Download distributions
+        uses: actions/download-artifact@v8
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Install and run each distribution in a clean venv
+        run: |
+          set -euo pipefail
+          for dist in dist/*.whl dist/*.tar.gz; do
+            python -m venv /tmp/venv
+            /tmp/venv/bin/python -m pip install "$dist"
+            /tmp/venv/bin/python -m pip show meshcontract | grep -E '^(Name|Version):'
+            /tmp/venv/bin/meshcontract --help
+            /tmp/venv/bin/meshcontract check examples/example.obj \
+              --contract examples/.meshcontract.yml
+            /tmp/venv/bin/meshcontract check examples/example.obj \
+              --contract examples/.meshcontract.yml --format json
+            rm -rf /tmp/venv
+          done
 
   publish:
     name: Publish to PyPI
-    needs: build
-    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    needs: [build, smoke-test]
+    # Runs only for a real release event, or for a manual run that explicitly
+    # sets publish_to_pypi to true. A manual run with the default (false) is a dry run.
+    if: >-
+      github.event_name == 'release' ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/main' &&
+       inputs.publish_to_pypi == true)
     runs-on: ubuntu-latest
     environment:
       name: pypi
