@@ -18,7 +18,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install MeshContract
-        run: python -m pip install "git+https://github.com/Ikonido/MeshContract.git@main"
+        run: python -m pip install "git+https://github.com/Ikonido/MeshContract.git@v0.2.0"
 
       - name: Check OBJ contract
         run: meshcontract check examples/example.obj --contract examples/.meshcontract.yml
