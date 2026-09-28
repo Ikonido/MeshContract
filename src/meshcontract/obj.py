@@ -2,33 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from math import isfinite
 from pathlib import Path
+
+from .models import Dimensions, MeshStats
 
 
 class ObjParseError(ValueError):
     """Raised when an OBJ file cannot be read as valid mesh geometry."""
-
-
-@dataclass(frozen=True, slots=True)
-class Dimensions:
-    """Axis-aligned dimensions, interpreted using the documented XYZ convention."""
-
-    width_m: float
-    length_m: float
-    height_m: float
-
-
-@dataclass(frozen=True, slots=True)
-class MeshStats:
-    """Geometry metrics needed by contract validation."""
-
-    vertices: int
-    faces: int
-    triangles: int
-    dimensions: Dimensions
-    ngon_faces: int
 
 
 def _parse_float(value: str, path: Path, line_number: int) -> float:

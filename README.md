@@ -22,6 +22,8 @@ pip install -e '.[dev]'
 pytest
 ```
 
+GitHub Actions runs the full test suite on Python 3.11 and 3.12 for every push and pull request.
+
 ## Contract
 
 ```yaml
@@ -51,7 +53,7 @@ This MVP does not validate UVs, textures, materials, normals, naming, or collisi
 - Add JSON output for CI and other tools.
 - Add a glTF/GLB reader behind the same geometry metrics interface.
 - Add UV and texture checks with focused contract sections.
-- Provide a GitHub Actions example and Unity/Unreal contract presets.
+- Add Unity/Unreal contract presets.
 - Explore semantic comparisons between two asset versions.
 
 MeshContract is released under the MIT License; see [LICENSE](LICENSE).

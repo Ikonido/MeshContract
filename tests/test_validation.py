@@ -1,5 +1,5 @@
 from meshcontract.contract import Contract
-from meshcontract.obj import Dimensions, MeshStats
+from meshcontract.models import Dimensions, MeshStats
 from meshcontract.validation import validate_mesh
 
 

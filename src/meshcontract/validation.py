@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .contract import Contract
-from .obj import MeshStats
+from .models import MeshStats
 
 
 def validate_mesh(stats: MeshStats, contract: Contract) -> list[str]:
