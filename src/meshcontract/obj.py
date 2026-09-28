@@ -1,0 +1,146 @@
+"""Small Wavefront OBJ geometry reader used by the MVP backend."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from math import isfinite
+from pathlib import Path
+
+
+class ObjParseError(ValueError):
+    """Raised when an OBJ file cannot be read as valid mesh geometry."""
+
+
+@dataclass(frozen=True, slots=True)
+class Dimensions:
+    """Axis-aligned dimensions, interpreted using the documented XYZ convention."""
+
+    width_m: float
+    length_m: float
+    height_m: float
+
+
+@dataclass(frozen=True, slots=True)
+class MeshStats:
+    """Geometry metrics needed by contract validation."""
+
+    vertices: int
+    faces: int
+    triangles: int
+    dimensions: Dimensions
+    ngon_faces: int
+
+
+def _parse_float(value: str, path: Path, line_number: int) -> float:
+    try:
+        number = float(value)
+    except ValueError as exc:
+        raise ObjParseError(f"{path}:{line_number}: invalid vertex coordinate {value!r}") from exc
+    if not isfinite(number):
+        raise ObjParseError(f"{path}:{line_number}: vertex coordinates must be finite numbers")
+    return number
+
+
+def _parse_face_vertex(token: str, vertex_count: int, path: Path, line_number: int) -> int:
+    """Return a zero-based position index; validate optional OBJ index syntax too."""
+    fields = token.split("/")
+    if len(fields) > 3 or not fields[0]:
+        raise ObjParseError(f"{path}:{line_number}: invalid face vertex reference {token!r}")
+
+    indices: list[int] = []
+    for field in fields:
+        if not field:
+            continue
+        try:
+            index = int(field)
+        except ValueError as exc:
+            raise ObjParseError(f"{path}:{line_number}: invalid face vertex reference {token!r}") from exc
+        if index == 0:
+            raise ObjParseError(f"{path}:{line_number}: OBJ indices are one-based; index 0 is invalid")
+        indices.append(index)
+
+    position_index = indices[0]
+    resolved = position_index - 1 if position_index > 0 else vertex_count + position_index
+    if resolved < 0 or resolved >= vertex_count:
+        raise ObjParseError(
+            f"{path}:{line_number}: vertex index {position_index} is out of range "
+            f"for {vertex_count} vertices"
+        )
+    return resolved
+
+
+def parse_obj(path: Path | str) -> MeshStats:
+    """Read vertices and polygon faces from an OBJ file and calculate mesh metrics.
+
+    Unknown OBJ statements (such as material and smoothing directives) are ignored.
+    Positive and relative negative vertex indices are supported.
+    """
+    obj_path = Path(path)
+    vertices: list[tuple[float, float, float]] = []
+    face_count = 0
+    triangle_count = 0
+    ngon_count = 0
+
+    try:
+        source = obj_path.open("r", encoding="utf-8-sig")
+    except OSError as exc:
+        raise ObjParseError(f"cannot read OBJ file {obj_path}: {exc}") from exc
+
+    try:
+        with source:
+            for line_number, raw_line in enumerate(source, start=1):
+                line = raw_line.partition("#")[0].strip()
+                if not line:
+                    continue
+                parts = line.split()
+                statement = parts[0]
+
+                if statement == "v":
+                    if len(parts) < 4:
+                        raise ObjParseError(
+                            f"{obj_path}:{line_number}: a vertex must have at least three coordinates"
+                        )
+                    vertices.append(
+                        (
+                            _parse_float(parts[1], obj_path, line_number),
+                            _parse_float(parts[2], obj_path, line_number),
+                            _parse_float(parts[3], obj_path, line_number),
+                        )
+                    )
+                elif statement == "f":
+                    polygon_size = len(parts) - 1
+                    if polygon_size < 3:
+                        raise ObjParseError(
+                            f"{obj_path}:{line_number}: a face must reference at least three vertices"
+                        )
+                    for token in parts[1:]:
+                        _parse_face_vertex(token, len(vertices), obj_path, line_number)
+                    face_count += 1
+                    triangle_count += polygon_size - 2
+                    if polygon_size > 4:
+                        ngon_count += 1
+    except UnicodeDecodeError as exc:
+        raise ObjParseError(f"OBJ file is not valid UTF-8: {obj_path}") from exc
+    except OSError as exc:
+        raise ObjParseError(f"cannot read OBJ file {obj_path}: {exc}") from exc
+
+    if not vertices:
+        raise ObjParseError(f"{obj_path}: no vertices found")
+
+    xs = [vertex[0] for vertex in vertices]
+    ys = [vertex[1] for vertex in vertices]
+    zs = [vertex[2] for vertex in vertices]
+    dimensions = Dimensions(
+        width_m=max(xs) - min(xs),
+        length_m=max(ys) - min(ys),
+        height_m=max(zs) - min(zs),
+    )
+    if not all(isfinite(value) for value in (dimensions.width_m, dimensions.length_m, dimensions.height_m)):
+        raise ObjParseError(f"{obj_path}: bounding-box dimensions exceed the finite numeric range")
+    return MeshStats(
+        vertices=len(vertices),
+        faces=face_count,
+        triangles=triangle_count,
+        dimensions=dimensions,
+        ngon_faces=ngon_count,
+    )

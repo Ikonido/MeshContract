@@ -1,0 +1,9 @@
+version: 1
+
+geometry:
+  max_triangles: 30000
+  max_vertices: 25000
+  max_width_m: 17
+  max_height_m: 20
+  max_length_m: 70
+  allow_ngons: false

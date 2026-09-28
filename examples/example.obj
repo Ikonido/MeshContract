@@ -1,0 +1,18 @@
+# A 2 m wide, 4 m long, 3 m high rectangular prism (X, Y, Z).
+o ExampleBox
+v 0 0 0
+v 2 0 0
+v 2 4 0
+v 0 4 0
+v 0 0 3
+v 2 0 3
+v 2 4 3
+v 0 4 3
+
+# Six quads; each contributes two virtual triangles.
+f 1 4 3 2
+f 5 6 7 8
+f 1 2 6 5
+f 2 3 7 6
+f 3 4 8 7
+f 4 1 5 8
