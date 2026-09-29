@@ -61,7 +61,12 @@ def _optional_dimension(geometry: dict[str, Any], key: str) -> float | None:
         return None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ContractError(f"geometry.{key} must be a finite non-negative number")
-    number = float(value)
+    try:
+        number = float(value)
+    except OverflowError as exc:
+        raise ContractError(
+            f"geometry.{key} must be a finite non-negative number"
+        ) from exc
     if not isfinite(number) or number < 0:
         raise ContractError(f"geometry.{key} must be a finite non-negative number")
     return number
