@@ -44,6 +44,7 @@ def test_negative_indices_and_ngons(tmp_path: Path) -> None:
     "content, message",
     [
         ("v 0 1\n", "at least three coordinates"),
+        ("v 0 0 0\nv 1 0 0\nv 0 1 0\n", "no faces found"),
         ("v 0 0 0\nf 1 2\n", "at least three vertices"),
         ("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 0 1 2\n", "index 0 is invalid"),
         ("v 0 0 0\nf 1 2 3\n", "out of range"),

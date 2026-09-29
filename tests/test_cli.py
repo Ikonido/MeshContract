@@ -38,6 +38,35 @@ def test_cli_returns_nonzero_for_contract_violation(tmp_path: Path, capsys) -> N
     assert "max_vertices exceeded" in output
 
 
+def test_cli_rejects_obj_without_faces(tmp_path: Path, capsys) -> None:
+    model = tmp_path / "point_cloud.obj"
+    model.write_text("v 0 0 0\nv 1 0 0\nv 0 1 0\n", encoding="utf-8")
+    contract = tmp_path / ".meshcontract.yml"
+    contract.write_text(
+        "version: 1\ngeometry:\n  max_vertices: 10\n  max_triangles: 10\n",
+        encoding="utf-8",
+    )
+
+    result = main(
+        [
+            "check",
+            str(model),
+            "--contract",
+            str(contract),
+            "--format",
+            "json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert result == 2
+    assert captured.err == ""
+    assert payload["status"] == "error"
+    assert payload["error"]["code"] == "invalid_input"
+    assert "no faces found" in payload["error"]["message"]
+
+
 def test_cli_reports_invalid_yaml_without_traceback(tmp_path: Path, capsys) -> None:
     contract = tmp_path / ".meshcontract.yml"
     contract.write_text("version: [\n", encoding="utf-8")
@@ -142,4 +171,35 @@ def test_cli_json_invalid_contract_is_machine_readable(tmp_path: Path, capsys) -
     assert payload["status"] == "error"
     assert payload["metrics"] is None
     assert payload["violations"] == []
+    assert payload["error"]["code"] == "invalid_contract"
+
+
+def test_cli_json_reports_oversized_dimension_without_traceback(
+    tmp_path: Path, capsys
+) -> None:
+    contract = tmp_path / ".meshcontract.yml"
+    huge_integer = "9" * 400
+    contract.write_text(
+        f"version: 1\ngeometry:\n  max_width_m: {huge_integer}\n",
+        encoding="utf-8",
+    )
+    model = Path(__file__).parents[1] / "examples" / "example.obj"
+
+    result = main(
+        [
+            "check",
+            str(model),
+            "--contract",
+            str(contract),
+            "--format",
+            "json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert result == 2
+    assert captured.err == ""
+    assert payload["status"] == "error"
+    assert payload["metrics"] is None
     assert payload["error"]["code"] == "invalid_contract"

@@ -21,6 +21,18 @@ def test_loads_contract(tmp_path: Path) -> None:
     assert contract.allow_ngons is False
 
 
+def test_oversized_dimension_is_reported_as_contract_error(tmp_path: Path) -> None:
+    contract_path = tmp_path / "oversized.yml"
+    huge_integer = "9" * 400
+    contract_path.write_text(
+        f"version: 1\ngeometry:\n  max_width_m: {huge_integer}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ContractError, match="finite non-negative number"):
+        load_contract(contract_path)
+
+
 @pytest.mark.parametrize(
     "content, message",
     [

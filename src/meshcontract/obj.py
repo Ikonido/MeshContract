@@ -107,6 +107,8 @@ def parse_obj(path: Path | str) -> MeshStats:
 
     if not vertices:
         raise ObjParseError(f"{obj_path}: no vertices found")
+    if not face_count:
+        raise ObjParseError(f"{obj_path}: no faces found")
 
     xs = [vertex[0] for vertex in vertices]
     ys = [vertex[1] for vertex in vertices]
