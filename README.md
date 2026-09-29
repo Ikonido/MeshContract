@@ -51,7 +51,7 @@ meshcontract check examples/example.obj --contract examples/.meshcontract.yml --
 
 ```json
 {
-  "meshcontract_version": "0.2.0",
+  "meshcontract_version": "0.2.1",
   "status": "pass",
   "model": "examples/example.obj",
   "metrics": {
@@ -90,7 +90,7 @@ OBJ does not define a universal unit or axis convention. MeshContract treats coo
 
 Exit codes are stable for CI: `0` means the contract passed, `1` means one or more contract violations, and `2` means invalid input, an invalid contract, or an unsupported model format. A non-zero code fails a GitHub Actions step by default.
 
-The repository includes a copyable [GitHub Actions workflow example](examples/github-actions/meshcontract.yml). Copy it to `.github/workflows/` in your asset repository and update the OBJ and contract paths in its final step. It installs the released package from PyPI, pinned to `meshcontract==0.2.0` for reproducible builds.
+The repository includes a copyable [GitHub Actions workflow example](examples/github-actions/meshcontract.yml). Copy it to `.github/workflows/` in your asset repository and update the OBJ and contract paths in its final step. It installs the released package from PyPI, pinned to `meshcontract==0.2.1` for reproducible builds.
 
 The project test workflow runs the full pytest suite on Python 3.11 and 3.12 for every push and pull request.
 
