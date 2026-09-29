@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.1
+
+- Reject OBJ files that contain vertices but no faces.
+- Report oversized dimension limits as a normal `ContractError` and structured CLI error instead of an uncaught `OverflowError`.
+- Add regression tests for both fixes.
+- No new file formats or contract rules.
+
 ## v0.2.0
 
 - JSON output

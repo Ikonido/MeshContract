@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from meshcontract import __version__
 from meshcontract.cli import main
 
 
@@ -100,7 +101,7 @@ def test_cli_json_pass_reports_metrics_without_text_output(capsys) -> None:
     assert result == 0
     assert captured.err == ""
     assert payload == {
-        "meshcontract_version": "0.2.0",
+        "meshcontract_version": __version__,
         "status": "pass",
         "model": str(model),
         "metrics": {
