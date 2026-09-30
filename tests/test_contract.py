@@ -54,6 +54,8 @@ def test_invalid_contracts_are_reported(
 
     with pytest.raises(ContractError, match=message):
         load_contract(contract_path)
+
+
 @pytest.mark.parametrize("content", [
     "version: 1\nversion: 1\ngeometry: {}\n",
     "version: 1\ngeometry:\n  max_width_m: 1\n  max_width_m: 3\n",
@@ -69,6 +71,54 @@ def test_duplicate_contract_keys_are_rejected(tmp_path, content):
 def test_yaml_merge_can_override_an_inherited_limit(tmp_path):
     path = tmp_path / "contract.yml"
     path.write_text(
-        "version: 1\ngeometry:\n  <<: &defaults {max_width_m: 1}\n  max_width_m: 3\n"
+        "version: 1\ngeometry:\n  <<: &defaults {max_width_m: 1}\n  max_width_m: 2\n"
     )
-    assert load_contract(path).max_width_m == 3
+    assert load_contract(path).max_width_m == 2
+
+
+@pytest.mark.parametrize("geometry", [
+    "  <<: {max_width_m: 1, max_width_m: 2}\n",
+    "  <<: [&d {max_width_m: 1, max_width_m: 2}, *d]\n",
+    "  <<: {<<: {max_width_m: 1, max_width_m: 2}}\n",
+    "  <<: {max_width_m: 1}\n  <<: {max_width_m: 2}\n",
+    "  <<: {<<: {max_width_m: 1}, <<: {max_width_m: 2}}\n",
+])
+def test_raw_merge_source_duplicates_are_rejected(tmp_path, geometry):
+    path = tmp_path / "duplicate-merge.yml"
+    path.write_text("version: 1\ngeometry:\n" + geometry)
+    with pytest.raises(ContractError, match="duplicate key"):
+        load_contract(path)
+
+
+def test_merge_sequence_preserves_first_source_priority_and_explicit_override(tmp_path):
+    path = tmp_path / "merge-sequence.yml"
+    path.write_text(
+        "version: 1\ngeometry:\n"
+        "  <<: [&first {max_width_m: 1, max_height_m: 4},\n"
+        "       {max_width_m: 2, max_length_m: 5}, *first]\n"
+        "  max_height_m: 3\n"
+    )
+    contract = load_contract(path)
+    assert contract.max_width_m == 1
+    assert contract.max_height_m == 3
+    assert contract.max_length_m == 5
+
+
+def test_scalar_anchors_and_aliases_preserve_safe_loader_values(tmp_path):
+    path = tmp_path / "aliases.yml"
+    path.write_text("version: 1\ngeometry:\n  max_width_m: &limit 2\n  max_height_m: *limit\n")
+    contract = load_contract(path)
+    assert contract.max_width_m == contract.max_height_m == 2
+
+
+@pytest.mark.parametrize("geometry, message", [
+    ("  ? [a, b]\n  : 1\n", "hashable"),
+    ("  max_width_m: !!python/object:builtins.object {}\n", "constructor"),
+    # A recursive alias is legal YAML; the contract's field type is invalid.
+    ("  max_width_m: &recursive [*recursive]\n", "finite non-negative number"),
+])
+def test_yaml_errors_and_invalid_alias_values_surface_as_contract_errors(tmp_path, geometry, message):
+    path = tmp_path / "invalid.yml"
+    path.write_text("version: 1\ngeometry:\n" + geometry)
+    with pytest.raises(ContractError, match=message):
+        load_contract(path)

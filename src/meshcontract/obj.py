@@ -58,22 +58,27 @@ def _validate_face(
     if len(set(indices)) != len(indices) or len(set(points)) != len(points):
         raise ObjParseError(f"{path}:{line_number}: a face contains repeated vertices")
 
-    # Scale each axis independently: area stays zero/nonzero, while very thin
-    # faces with large coordinates avoid both overflow and underflow.
-    scales = [max(abs(point[j]) for point in points) for j in range(3)]
-    normalized = [
-        tuple(point[j] / scales[j] if scales[j] else 0.0 for j in range(3))
-        for point in points
+    # Finite floats are exact dyadic rationals. A common power-of-two denominator
+    # scales every axis uniformly into integers, without rounded subtraction,
+    # overflow, underflow, or a geometry tolerance.
+    ratios = [[coordinate.as_integer_ratio() for coordinate in point] for point in points]
+    denominator = max(denom for point in ratios for _, denom in point)
+    exact = [
+        tuple(numerator * (denominator // denom) for numerator, denom in point)
+        for point in ratios
     ]
-    origin = normalized[0]
-    area = [0.0, 0.0, 0.0]
-    for index in range(1, len(normalized) - 1):
-        a = tuple(normalized[index][j] - origin[j] for j in range(3))
-        b = tuple(normalized[index + 1][j] - origin[j] for j in range(3))
-        for j in range(3):
-            area[j] += a[(j + 1) % 3] * b[(j + 2) % 3] - a[(j + 2) % 3] * b[(j + 1) % 3]
-    if not any(area):
-        raise ObjParseError(f"{path}:{line_number}: a face has zero area")
+    origin = exact[0]
+    edges = [tuple(point[j] - origin[j] for j in range(3)) for point in exact[1:]]
+    # A polygon is completely degenerate only if every fan triangle is collinear.
+    # Do not sum oriented areas: cancellation is not zero referenced geometry.
+    for a, b in zip(edges, edges[1:]):
+        if any(
+            a[(j + 1) % 3] * b[(j + 2) % 3]
+            != a[(j + 2) % 3] * b[(j + 1) % 3]
+            for j in range(3)
+        ):
+            return
+    raise ObjParseError(f"{path}:{line_number}: a face has zero area (completely degenerate)")
 
 
 def parse_obj(path: Path | str) -> MeshStats:

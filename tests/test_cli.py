@@ -221,3 +221,47 @@ def test_cli_json_reports_oversized_dimension_without_traceback(
     assert payload["status"] == "error"
     assert payload["metrics"] is None
     assert payload["error"]["code"] == "invalid_contract"
+
+
+@pytest.mark.parametrize("output_format", ["text", "json"])
+@pytest.mark.parametrize("content", [
+    "version: 1\nversion: 1\ngeometry: {}\n",
+    "version: 1\ngeometry: {max_width_m: 1, max_width_m: 2}\n",
+    "version: 1\ngeometry: {<<: {max_width_m: 1, max_width_m: 2}}\n",
+    "version: 1\ngeometry: {<<: [&d {max_width_m: 1, max_width_m: 2}, *d]}\n",
+    "version: 1\ngeometry: {<<: {max_width_m: 1}, <<: {max_width_m: 2}}\n",
+])
+def test_duplicate_yaml_error_surface(tmp_path, capsys, content, output_format):
+    contract = tmp_path / "contract.yml"
+    contract.write_text(content)
+    model = Path(__file__).parents[1] / "examples" / "example.obj"
+    assert main(["check", str(model), "--contract", str(contract), "--format", output_format]) == 2
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.out + captured.err
+    if output_format == "json":
+        payload = json.loads(captured.out)
+        assert captured.err == ""
+        assert payload["status"] == "error"
+        assert payload["error"]["code"] == "invalid_contract"
+        assert "duplicate key" in payload["error"]["message"]
+    else:
+        assert "duplicate key" in captured.err
+
+
+@pytest.mark.parametrize("output_format", ["text", "json"])
+@pytest.mark.parametrize("face", ["f 1 2 3", "f 1 2 3 4", "f 1 2 3 1"])
+def test_completely_degenerate_obj_error_surface(tmp_path, capsys, face, output_format):
+    contract = tmp_path / "contract.yml"
+    contract.write_text("version: 1\ngeometry: {}\n")
+    model = tmp_path / "model.obj"
+    model.write_text("v 1 1 1\nv 2 3 4\nv 3 5 7\nv 4 7 10\n" + face + "\n")
+    assert main(["check", str(model), "--contract", str(contract), "--format", output_format]) == 2
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.out + captured.err
+    if output_format == "json":
+        payload = json.loads(captured.out)
+        assert captured.err == ""
+        assert payload["status"] == "error"
+        assert payload["error"]["code"] == "invalid_input"
+    else:
+        assert "ERROR" in captured.err
