@@ -50,6 +50,37 @@ def _parse_face_vertex(token: str, vertex_count: int, path: Path, line_number: i
     return resolved
 
 
+def _validate_face(
+    indices: list[int], vertices: list[tuple[float, float, float]],
+    path: Path, line_number: int,
+) -> None:
+    points = [vertices[index] for index in indices]
+    if len(set(indices)) != len(indices) or len(set(points)) != len(points):
+        raise ObjParseError(f"{path}:{line_number}: a face contains repeated vertices")
+
+    # Finite floats are exact dyadic rationals. A common power-of-two denominator
+    # scales every axis uniformly into integers, without rounded subtraction,
+    # overflow, underflow, or a geometry tolerance.
+    ratios = [[coordinate.as_integer_ratio() for coordinate in point] for point in points]
+    denominator = max(denom for point in ratios for _, denom in point)
+    exact = [
+        tuple(numerator * (denominator // denom) for numerator, denom in point)
+        for point in ratios
+    ]
+    origin = exact[0]
+    edges = [tuple(point[j] - origin[j] for j in range(3)) for point in exact[1:]]
+    # A polygon is completely degenerate only if every fan triangle is collinear.
+    # Do not sum oriented areas: cancellation is not zero referenced geometry.
+    for a, b in zip(edges, edges[1:]):
+        if any(
+            a[(j + 1) % 3] * b[(j + 2) % 3]
+            != a[(j + 2) % 3] * b[(j + 1) % 3]
+            for j in range(3)
+        ):
+            return
+    raise ObjParseError(f"{path}:{line_number}: a face has zero area (completely degenerate)")
+
+
 def parse_obj(path: Path | str) -> MeshStats:
     """Read vertices and polygon faces from an OBJ file and calculate mesh metrics.
 
@@ -94,8 +125,11 @@ def parse_obj(path: Path | str) -> MeshStats:
                         raise ObjParseError(
                             f"{obj_path}:{line_number}: a face must reference at least three vertices"
                         )
-                    for token in parts[1:]:
+                    indices = [
                         _parse_face_vertex(token, len(vertices), obj_path, line_number)
+                        for token in parts[1:]
+                    ]
+                    _validate_face(indices, vertices, obj_path, line_number)
                     face_count += 1
                     triangle_count += polygon_size - 2
                     if polygon_size > 4:

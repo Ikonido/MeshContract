@@ -84,6 +84,21 @@ geometry:
 
 All limits are optional. A face with `n` vertices contributes `n - 2` to the virtual triangle count; the OBJ file is not changed. An n-gon means a face with more than four vertices, so quads are allowed when `allow_ngons` is false.
 
+Duplicate explicit YAML keys are rejected, including keys inside merge sources
+and repeated `<<` keys. Normal YAML merge precedence is preserved: explicit
+keys override inherited values, and the first mapping in a merge sequence has
+priority over later mappings.
+
+OBJ faces with repeated vertex indices or identical referenced XYZ positions
+are invalid input (exit code `2`), including a repeated first vertex at the end.
+Faces whose referenced geometry is completely degenerate are also rejected:
+a triangle must have noncollinear vertices; a larger polygon is rejected only
+if every fan triangle from its first vertex is collinear. Collinearity is checked
+exactly for the parsed finite floating-point coordinates, without a geometry
+tolerance. MeshContract does not validate polygon planarity, self-intersection,
+or triangulation topology. A polygon with noncollinear geometry may pass these
+input checks even when its topology is unsuitable for rendering.
+
 OBJ does not define a universal unit or axis convention. MeshContract treats coordinate values as meters and maps X to width, Y to length, and Z to height. Export models using that convention, or transform them before checking.
 
 ## CI / GitHub Actions

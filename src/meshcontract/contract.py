@@ -14,6 +14,56 @@ class ContractError(ValueError):
     """Raised for unreadable, invalid, or unsupported contract files."""
 
 
+class _ContractLoader(yaml.SafeLoader):
+    """Check raw mappings before SafeLoader expands merges and constructs values."""
+
+    def construct_document(self, node: yaml.Node) -> Any:
+        self._validate_explicit_keys(node, set())
+        return super().construct_document(node)
+
+    def _validate_explicit_keys(self, node: yaml.Node, visited: set[int]) -> None:
+        # Aliases share nodes; recursive aliases must not recurse indefinitely.
+        if id(node) in visited:
+            return
+        visited.add(id(node))
+        if isinstance(node, yaml.SequenceNode):
+            for child in node.value:
+                self._validate_explicit_keys(child, visited)
+        elif isinstance(node, yaml.MappingNode):
+            # Validate children first: constructing an object key may itself
+            # cause SafeLoader to flatten mappings within that key.
+            for key_node, value_node in node.value:
+                self._validate_explicit_keys(key_node, visited)
+                self._validate_explicit_keys(value_node, visited)
+            seen = set()
+            seen_merge = False
+            for key_node, _ in node.value:
+                if key_node.tag == "tag:yaml.org,2002:merge":
+                    key = "<<"
+                    duplicate = seen_merge
+                    seen_merge = True
+                else:
+                    # SafeLoader treats the special YAML '=' key as a string.
+                    key = (
+                        self.construct_scalar(key_node)
+                        if key_node.tag == "tag:yaml.org,2002:value"
+                        else self.construct_object(key_node, deep=True)
+                    )
+                    try:
+                        duplicate = key in seen
+                        seen.add(key)
+                    except TypeError as exc:
+                        raise yaml.constructor.ConstructorError(
+                            "while reading a contract mapping", node.start_mark,
+                            "mapping keys must be hashable", key_node.start_mark,
+                        ) from exc
+                if duplicate:
+                    raise yaml.constructor.ConstructorError(
+                        "while reading a contract mapping", node.start_mark,
+                        f"duplicate key {key!r}", key_node.start_mark,
+                    )
+
+
 @dataclass(frozen=True, slots=True)
 class Contract:
     version: int
@@ -81,7 +131,7 @@ def load_contract(path: Path | str) -> Contract:
         raise ContractError(f"cannot read contract file {contract_path}: {exc}") from exc
 
     try:
-        document = yaml.safe_load(text)
+        document = yaml.load(text, Loader=_ContractLoader)
     except yaml.YAMLError as exc:
         raise ContractError(f"invalid YAML in {contract_path}: {exc}") from exc
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Reject duplicate explicit contract keys, including merge-source mappings and repeated merge keys, while preserving normal YAML merge precedence.
+- Reject repeated face vertices and completely degenerate referenced geometry using exact collinearity of parsed coordinates; do not classify polygon planarity or self-intersection.
+- Run the full test suite on the release tag before building PyPI distributions.
+
 ## v0.2.1
 
 - Reject OBJ files that contain vertices but no faces.
