@@ -84,6 +84,9 @@ geometry:
 
 All limits are optional. A face with `n` vertices contributes `n - 2` to the virtual triangle count; the OBJ file is not changed. An n-gon means a face with more than four vertices, so quads are allowed when `allow_ngons` is false.
 
+Duplicate YAML keys are rejected instead of silently replacing a limit. OBJ
+faces with repeated vertices or zero area are invalid input (exit code `2`).
+
 OBJ does not define a universal unit or axis convention. MeshContract treats coordinate values as meters and maps X to width, Y to length, and Z to height. Export models using that convention, or transform them before checking.
 
 ## CI / GitHub Actions

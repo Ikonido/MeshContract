@@ -54,3 +54,21 @@ def test_invalid_contracts_are_reported(
 
     with pytest.raises(ContractError, match=message):
         load_contract(contract_path)
+@pytest.mark.parametrize("content", [
+    "version: 1\nversion: 1\ngeometry: {}\n",
+    "version: 1\ngeometry:\n  max_width_m: 1\n  max_width_m: 3\n",
+    "version: 1\ngeometry: {}\ngeometry: {}\n",
+])
+def test_duplicate_contract_keys_are_rejected(tmp_path, content):
+    path = tmp_path / "contract.yml"
+    path.write_text(content)
+    with pytest.raises(ContractError, match="duplicate key"):
+        load_contract(path)
+
+
+def test_yaml_merge_can_override_an_inherited_limit(tmp_path):
+    path = tmp_path / "contract.yml"
+    path.write_text(
+        "version: 1\ngeometry:\n  <<: &defaults {max_width_m: 1}\n  max_width_m: 3\n"
+    )
+    assert load_contract(path).max_width_m == 3

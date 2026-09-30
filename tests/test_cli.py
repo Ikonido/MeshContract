@@ -1,8 +1,25 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from meshcontract import __version__
 from meshcontract.cli import main
+
+
+@pytest.mark.parametrize("duplicate", [False, True])
+def test_invalid_geometry_or_duplicate_contract_returns_json_error(tmp_path, capsys, duplicate):
+    model = tmp_path / "model.obj"
+    model.write_text("v 0 0 0\nf 1 1 1\n")
+    contract = tmp_path / "contract.yml"
+    contract.write_text(
+        "version: 1\ngeometry:\n  max_width_m: 1\n  max_width_m: 3\n"
+        if duplicate else "version: 1\ngeometry: {}\n"
+    )
+    assert main(["check", str(model), "--contract", str(contract), "--format", "json"]) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "error"
+    assert payload["error"]["code"] == ("invalid_contract" if duplicate else "invalid_input")
 
 
 def test_cli_passes_example(capsys) -> None:

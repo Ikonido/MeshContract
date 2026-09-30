@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Reject duplicate contract keys and OBJ faces with repeated vertices or zero area.
+- Run the full test suite on the release tag before building PyPI distributions.
+
 ## v0.2.1
 
 - Reject OBJ files that contain vertices but no faces.

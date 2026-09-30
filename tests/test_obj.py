@@ -67,3 +67,24 @@ def test_empty_obj_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(ObjParseError, match="no vertices"):
         parse_obj(model)
+
+
+@pytest.mark.parametrize("content, message", [
+    ("v 0 0 0\nf 1 1 1\n", "repeated vertices"),
+    ("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 -3\n", "repeated vertices"),
+    ("v 0 0 0\nv 0 0 0\nv 0 1 0\nf 1 2 3\n", "repeated vertices"),
+    ("v 0 0 0\nv 1 1 1\nv 2 2 2\nf 1 2 3\n", "zero area"),
+    ("v 0 0 0\nv 1 1 0\nv 0 1 0\nv 1 0 0\nf 1 2 3 4\n", "zero area"),
+])
+def test_degenerate_faces_are_rejected(tmp_path, content, message):
+    path = tmp_path / "degenerate.obj"
+    path.write_text(content)
+    with pytest.raises(ObjParseError, match=message):
+        parse_obj(path)
+
+
+@pytest.mark.parametrize("height", ["1e200", "1e-200"])
+def test_large_finite_coordinates_do_not_overflow_or_underflow_face_area(tmp_path, height):
+    path = tmp_path / "large.obj"
+    path.write_text(f"v 0 0 0\nv 1e200 0 0\nv 0 {height} 0\nf 1 2 3\n")
+    assert parse_obj(path).triangles == 1

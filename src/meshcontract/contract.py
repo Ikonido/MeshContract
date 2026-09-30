@@ -14,6 +14,32 @@ class ContractError(ValueError):
     """Raised for unreadable, invalid, or unsupported contract files."""
 
 
+class _ContractLoader(yaml.SafeLoader):
+    """Reject duplicate explicit keys without changing YAML merge semantics."""
+
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict:
+        if isinstance(node, yaml.MappingNode):
+            seen = set()
+            for key_node, _ in node.value:
+                if key_node.tag == "tag:yaml.org,2002:merge":
+                    continue
+                key = self.construct_object(key_node, deep=True)
+                try:
+                    duplicate = key in seen
+                    seen.add(key)
+                except TypeError as exc:
+                    raise yaml.constructor.ConstructorError(
+                        "while reading a contract mapping", node.start_mark,
+                        "mapping keys must be hashable", key_node.start_mark,
+                    ) from exc
+                if duplicate:
+                    raise yaml.constructor.ConstructorError(
+                        "while reading a contract mapping", node.start_mark,
+                        f"duplicate key {key!r}", key_node.start_mark,
+                    )
+        return super().construct_mapping(node, deep=deep)
+
+
 @dataclass(frozen=True, slots=True)
 class Contract:
     version: int
@@ -81,7 +107,7 @@ def load_contract(path: Path | str) -> Contract:
         raise ContractError(f"cannot read contract file {contract_path}: {exc}") from exc
 
     try:
-        document = yaml.safe_load(text)
+        document = yaml.load(text, Loader=_ContractLoader)
     except yaml.YAMLError as exc:
         raise ContractError(f"invalid YAML in {contract_path}: {exc}") from exc
 

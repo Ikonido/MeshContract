@@ -75,6 +75,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Run release test suite
+        run: |
+          python -m pip install '.[dev]'
+          python -m pytest
+
       - name: Build distributions
         run: |
           python -m pip install --upgrade build twine

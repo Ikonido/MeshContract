@@ -50,6 +50,32 @@ def _parse_face_vertex(token: str, vertex_count: int, path: Path, line_number: i
     return resolved
 
 
+def _validate_face(
+    indices: list[int], vertices: list[tuple[float, float, float]],
+    path: Path, line_number: int,
+) -> None:
+    points = [vertices[index] for index in indices]
+    if len(set(indices)) != len(indices) or len(set(points)) != len(points):
+        raise ObjParseError(f"{path}:{line_number}: a face contains repeated vertices")
+
+    # Scale each axis independently: area stays zero/nonzero, while very thin
+    # faces with large coordinates avoid both overflow and underflow.
+    scales = [max(abs(point[j]) for point in points) for j in range(3)]
+    normalized = [
+        tuple(point[j] / scales[j] if scales[j] else 0.0 for j in range(3))
+        for point in points
+    ]
+    origin = normalized[0]
+    area = [0.0, 0.0, 0.0]
+    for index in range(1, len(normalized) - 1):
+        a = tuple(normalized[index][j] - origin[j] for j in range(3))
+        b = tuple(normalized[index + 1][j] - origin[j] for j in range(3))
+        for j in range(3):
+            area[j] += a[(j + 1) % 3] * b[(j + 2) % 3] - a[(j + 2) % 3] * b[(j + 1) % 3]
+    if not any(area):
+        raise ObjParseError(f"{path}:{line_number}: a face has zero area")
+
+
 def parse_obj(path: Path | str) -> MeshStats:
     """Read vertices and polygon faces from an OBJ file and calculate mesh metrics.
 
@@ -94,8 +120,11 @@ def parse_obj(path: Path | str) -> MeshStats:
                         raise ObjParseError(
                             f"{obj_path}:{line_number}: a face must reference at least three vertices"
                         )
-                    for token in parts[1:]:
+                    indices = [
                         _parse_face_vertex(token, len(vertices), obj_path, line_number)
+                        for token in parts[1:]
+                    ]
+                    _validate_face(indices, vertices, obj_path, line_number)
                     face_count += 1
                     triangle_count += polygon_size - 2
                     if polygon_size > 4:
